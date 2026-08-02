@@ -3,6 +3,7 @@ package rvf
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,9 +14,20 @@ import (
 // registers per request, aligned to whole IDU input blocks (12*9=108).
 const maxRegsPerRead = 108
 
-// ConnConfig describes how to reach the Modbus Box: either directly
-// over RS-485 (url "rtu:///dev/tty...") or through an RTU<->TCP gateway
-// such as the PUSR USR-DR164 (url "tcp://host:502").
+// transport is the low-level register access implemented by the
+// simonvetter client (tcp://, rtu://) and by the native RTU-over-TCP
+// transport (rtutcp://, for serial servers in transparent mode).
+type transport interface {
+	ReadInputs(addr, count uint16) ([]uint16, error)
+	ReadHoldings(addr, count uint16) ([]uint16, error)
+	WriteRegister(addr, value uint16) error
+	WriteRegisters(addr uint16, values []uint16) error
+	Close() error
+}
+
+// ConnConfig describes how to reach the Modbus Box: through an
+// RTU<->TCP gateway ("tcp://host:502"), a transparent serial server
+// ("rtutcp://host:8899"), or directly over RS-485 ("rtu:///dev/tty...").
 type ConnConfig struct {
 	URL     string        // tcp://host:port or rtu:///dev/ttyUSB0
 	UnitID  uint8         // Modbus slave address (SW1/SW2 on the box)
@@ -31,7 +43,7 @@ type ConnConfig struct {
 // methods are safe for concurrent use; requests are serialized because
 // the RS-485 side of the gateway is half-duplex.
 type Client struct {
-	mc *modbus.ModbusClient
+	tr transport
 	mu sync.Mutex
 }
 
@@ -42,6 +54,17 @@ func Dial(cfg ConnConfig) (*Client, error) {
 	}
 	if cfg.Speed == 0 {
 		cfg.Speed = 9600
+	}
+	unitID := cfg.UnitID
+	if unitID == 0 {
+		unitID = 1
+	}
+	if addr, ok := strings.CutPrefix(cfg.URL, "rtutcp://"); ok {
+		tr, err := dialRTUTCP(addr, unitID, cfg.Timeout)
+		if err != nil {
+			return nil, err
+		}
+		return &Client{tr: tr}, nil
 	}
 	parity := modbus.PARITY_NONE
 	switch cfg.Parity {
@@ -71,33 +94,45 @@ func Dial(cfg ConnConfig) (*Client, error) {
 	if err := mc.Open(); err != nil {
 		return nil, fmt.Errorf("connect %s: %w", cfg.URL, err)
 	}
-	if cfg.UnitID != 0 {
-		if err := mc.SetUnitId(cfg.UnitID); err != nil {
-			mc.Close()
-			return nil, err
-		}
+	if err := mc.SetUnitId(unitID); err != nil {
+		mc.Close()
+		return nil, err
 	}
-	return &Client{mc: mc}, nil
+	return &Client{tr: &mbAdapter{mc}}, nil
 }
+
+// mbAdapter adapts *modbus.ModbusClient to the transport interface.
+type mbAdapter struct{ mc *modbus.ModbusClient }
+
+func (a *mbAdapter) ReadInputs(addr, count uint16) ([]uint16, error) {
+	return a.mc.ReadRegisters(addr, count, modbus.INPUT_REGISTER)
+}
+func (a *mbAdapter) ReadHoldings(addr, count uint16) ([]uint16, error) {
+	return a.mc.ReadRegisters(addr, count, modbus.HOLDING_REGISTER)
+}
+func (a *mbAdapter) WriteRegister(addr, value uint16) error {
+	return a.mc.WriteRegister(addr, value)
+}
+func (a *mbAdapter) WriteRegisters(addr uint16, values []uint16) error {
+	return a.mc.WriteRegisters(addr, values)
+}
+func (a *mbAdapter) Close() error { return a.mc.Close() }
 
 // Close closes the underlying connection.
-func (c *Client) Close() error { return c.mc.Close() }
-
-func (c *Client) read(addr uint16, count uint16, regType modbus.RegType) ([]uint16, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.mc.ReadRegisters(addr, count, regType)
-}
+func (c *Client) Close() error { return c.tr.Close() }
 
 // readChunked reads a span of registers in <=maxRegsPerRead pieces.
-func (c *Client) readChunked(addr uint16, count uint16, regType modbus.RegType) ([]uint16, error) {
+func (c *Client) readChunked(addr uint16, count uint16,
+	read func(addr, count uint16) ([]uint16, error)) ([]uint16, error) {
 	out := make([]uint16, 0, count)
 	for count > 0 {
 		n := count
 		if n > maxRegsPerRead {
 			n = maxRegsPerRead
 		}
-		regs, err := c.read(addr, n, regType)
+		c.mu.Lock()
+		regs, err := read(addr, n)
+		c.mu.Unlock()
 		if err != nil {
 			return nil, fmt.Errorf("read %d regs @ %d: %w", n, addr, err)
 		}
@@ -110,19 +145,19 @@ func (c *Client) readChunked(addr uint16, count uint16, regType modbus.RegType) 
 
 // ReadInputs reads raw input registers (function 0x04).
 func (c *Client) ReadInputs(addr, count uint16) ([]uint16, error) {
-	return c.readChunked(addr, count, modbus.INPUT_REGISTER)
+	return c.readChunked(addr, count, c.tr.ReadInputs)
 }
 
 // ReadHoldings reads raw holding registers (function 0x03).
 func (c *Client) ReadHoldings(addr, count uint16) ([]uint16, error) {
-	return c.readChunked(addr, count, modbus.HOLDING_REGISTER)
+	return c.readChunked(addr, count, c.tr.ReadHoldings)
 }
 
 // WriteRegister writes one holding register (function 0x06).
 func (c *Client) WriteRegister(addr, value uint16) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.mc.WriteRegister(addr, value)
+	return c.tr.WriteRegister(addr, value)
 }
 
 // WriteRegisters writes multiple holding registers (function 0x10).
@@ -133,7 +168,7 @@ func (c *Client) WriteRegisters(addr uint16, values []uint16) error {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.mc.WriteRegisters(addr, values)
+	return c.tr.WriteRegisters(addr, values)
 }
 
 // OnlineIDUs reads the system online bitmap and returns the flags plus

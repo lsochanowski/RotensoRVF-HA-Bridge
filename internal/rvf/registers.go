@@ -83,7 +83,7 @@ const (
 )
 
 var modeNames = map[Mode]string{
-	ModeCool: "cool", ModeDry: "dry", ModeFan: "fan_only",
+	0: "unset", ModeCool: "cool", ModeDry: "dry", ModeFan: "fan_only",
 	ModeHeat: "heat", ModeAuto: "auto",
 	ModeFloorHeat: "floor_heat", ModeSmartFloorHeat: "smart_floor_heat",
 }
@@ -105,7 +105,7 @@ const (
 )
 
 var fanNames = map[FanSpeed]string{
-	FanLow: "low", FanMed: "medium", FanHigh: "high", FanAuto: "auto",
+	0: "unset", FanLow: "low", FanMed: "medium", FanHigh: "high", FanAuto: "auto",
 }
 
 var fanByName = map[string]FanSpeed{

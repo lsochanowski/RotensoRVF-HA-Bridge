@@ -43,8 +43,13 @@ Two transports are supported (flag `--conn` or `connection.url` in config):
 
 | Transport | URL | Notes |
 |---|---|---|
-| Modbus TCP | `tcp://192.168.1.50:502` | e.g. PUSR **USR-DR164** in *Modbus gateway* mode (not transparent transmission!) |
+| Modbus TCP | `tcp://192.168.1.50:502` | serial server in *Modbus gateway* mode (MBAP) |
+| RTU over TCP | `rtutcp://192.168.1.50:8899` | serial server in *transparent* mode — raw RTU frames over a TCP socket (native transport with CRC16, auto-reconnect and a warm-up request: the USR-DR164 swallows the first frame on a fresh connection) |
 | Modbus RTU | `rtu:///dev/serial/by-id/usb-FTDI_...` | direct RS-485, 9600 8N1 by default |
+
+Field-tested with a PUSR USR-DR164 in transparent mode (`rtutcp://`).
+On that device the *Protocol Conversion* (Modbus gateway) setting did not
+survive a reboot, so transparent + `rtutcp://` is the more reliable path.
 
 The slave address (`--unit`, default 1) is set by the SW1/SW2 rotary
 switches on the Modbus Box. Parity is configurable via holding register
