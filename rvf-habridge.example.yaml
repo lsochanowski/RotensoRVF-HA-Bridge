@@ -1,0 +1,26 @@
+# rvf-habridge configuration.
+# Copy to rvf-habridge.yaml and adjust.
+
+connection:
+  # Via a Modbus RTU->TCP gateway (e.g. PUSR USR-DR164 in Modbus gateway
+  # mode — NOT transparent transmission):
+  url: tcp://192.168.1.50:502
+  # Or directly over RS-485 (USB converter, use the by-id path):
+  # url: rtu:///dev/serial/by-id/usb-FTDI_...-port0
+  # speed: 9600        # rtu only; Modbus Box default
+  # parity: none       # rtu only: none/even/odd (holding reg 42001)
+  # stop_bits: 1       # rtu only
+  unit_id: 1           # slave address set by SW1/SW2 rotary switches
+  timeout: 2s
+
+# Indoor unit names. Discover the ids with `rvf-habridge watch`:
+# poke each unit with its remote and note which id reacts.
+idus:
+  0: Salon
+  1: Sypialnia
+  2: Gabinet
+  3: Kuchnia
+  4: Pokoj dzieciecy
+
+# Number of outdoor units on the bus (1-4).
+odu_count: 1
