@@ -30,6 +30,7 @@ type Bridge struct {
 	mu         sync.Mutex
 	lastIDU    map[int]*rvf.IDUStatus
 	discovered map[string]bool // discovery already published for key
+	lastOnline string
 	oduAlive   map[int]bool
 }
 
@@ -126,6 +127,10 @@ func (b *Bridge) poll() {
 	if err != nil {
 		b.logf("poll: %v", err)
 		return
+	}
+	if fmt.Sprint(ids) != b.lastOnline {
+		b.logf("poll: %d IDU(s) online: %v", len(ids), ids)
+		b.lastOnline = fmt.Sprint(ids)
 	}
 	mode, _, err := b.client.SystemMode()
 	if err != nil {

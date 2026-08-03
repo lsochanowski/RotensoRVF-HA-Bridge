@@ -3,6 +3,8 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -15,12 +17,18 @@ import (
 // run with zero MQTT configuration.
 func (c *Config) FillMQTTFromSupervisor() error {
 	if c.MQTT.Broker != "" {
+		log.Printf("mqtt: broker configured explicitly (%s), skipping supervisor discovery", c.MQTT.Broker)
 		return nil
 	}
 	token := os.Getenv("SUPERVISOR_TOKEN")
 	if token == "" {
+		token = os.Getenv("HASSIO_TOKEN") // legacy name
+	}
+	if token == "" {
+		log.Printf("mqtt: no SUPERVISOR_TOKEN/HASSIO_TOKEN in environment — not running as add-on?")
 		return nil
 	}
+	log.Printf("mqtt: querying supervisor services API for broker credentials")
 
 	req, err := http.NewRequest("GET", "http://supervisor/services/mqtt", nil)
 	if err != nil {
@@ -34,7 +42,9 @@ func (c *Config) FillMQTTFromSupervisor() error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("supervisor services/mqtt: HTTP %d (is the Mosquitto add-on installed?)", resp.StatusCode)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("supervisor services/mqtt: HTTP %d: %s (is the Mosquitto add-on installed and started?)",
+			resp.StatusCode, string(body))
 	}
 
 	var out struct {
@@ -56,5 +66,6 @@ func (c *Config) FillMQTTFromSupervisor() error {
 	c.MQTT.Broker = fmt.Sprintf("%s://%s:%d", scheme, out.Data.Host, out.Data.Port)
 	c.MQTT.Username = out.Data.Username
 	c.MQTT.Password = out.Data.Password
+	log.Printf("mqtt: supervisor provided broker %s (user %q)", c.MQTT.Broker, c.MQTT.Username)
 	return nil
 }

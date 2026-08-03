@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"sort"
@@ -21,7 +22,7 @@ import (
 	"github.com/lsochanowski/RotensoRVF-HA-Bridge/rvf-habridge/internal/rvf"
 )
 
-var version = "0.1.0-dev"
+var version = "0.2.2"
 
 func usage() {
 	fmt.Fprintf(os.Stderr, `rvf-habridge %s — Rotenso RVF Modbus Box tool
@@ -589,15 +590,22 @@ func cmdBridge(args []string) {
 	broker := fs.String("broker", "", "MQTT broker URL, e.g. tcp://host:1883 (overrides config)")
 	fs.Parse(args)
 
+	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
+	log.Printf("rvf-habridge %s starting (bridge mode)", version)
+
 	var cfg *config.Config
 	var client *rvf.Client
 	if config.RunningAsAddon() {
 		// Home Assistant add-on: options come from the Supervisor.
+		log.Printf("add-on mode: loading options from %s", config.AddonOptionsPath)
 		acfg, err := config.LoadAddon(config.AddonOptionsPath)
 		if err != nil {
 			fatal("bridge: addon options: %v", err)
 		}
 		cfg = acfg
+		log.Printf("options: connection_url=%s unit_id=%d timeout=%s poll_interval=%s odu_count=%d idus=%d named",
+			cfg.Connection.URL, cfg.Connection.UnitID, cfg.Connection.Timeout,
+			cfg.Bridge.PollInterval, cfg.ODUCount, len(cfg.IDUs))
 		c, err := rvf.Dial(rvf.ConnConfig{
 			URL:     cfg.Connection.URL,
 			UnitID:  cfg.Connection.UnitID,
@@ -606,8 +614,10 @@ func cmdBridge(args []string) {
 		if err != nil {
 			fatal("bridge: %v", err)
 		}
+		log.Printf("modbus: connected to %s (unit %d)", cfg.Connection.URL, cfg.Connection.UnitID)
 		client = c
 	} else {
+		log.Printf("standalone mode: config file + flags")
 		cfg, client = connect()
 	}
 	defer client.Close()
