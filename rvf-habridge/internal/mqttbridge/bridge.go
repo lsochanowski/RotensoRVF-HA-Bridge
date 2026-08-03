@@ -32,6 +32,16 @@ type Bridge struct {
 	discovered map[string]bool // discovery already published for key
 	lastOnline string
 	oduAlive   map[int]bool
+	pending    map[int]*pendingCmd
+}
+
+// pendingCmd holds an accepted-but-unconfirmed command. The box applies
+// holding writes to its readable table with a delay of several seconds,
+// so polled state contradicting a fresh command must not clobber the
+// optimistic state until the hardware confirms it (or the window ends).
+type pendingCmd struct {
+	req   rvf.SetRequest
+	until time.Time
 }
 
 func New(cfg *config.Config, client *rvf.Client, version string) *Bridge {
@@ -42,10 +52,16 @@ func New(cfg *config.Config, client *rvf.Client, version string) *Bridge {
 		lastIDU:    map[int]*rvf.IDUStatus{},
 		discovered: map[string]bool{},
 		oduAlive:   map[int]bool{},
+		pending:    map[int]*pendingCmd{},
 	}
 }
 
 func (b *Bridge) logf(format string, args ...any) { log.Printf(format, args...) }
+
+// pendingWindow bounds how long an unconfirmed command overrides polled
+// state. The box usually applies writes within 5-15 s; past this window
+// the hardware state wins (e.g. a rejected/failed write becomes visible).
+const pendingWindow = 45 * time.Second
 
 // --- topics ---
 
@@ -169,8 +185,7 @@ func (b *Bridge) poll() {
 			b.discovered[key] = true
 		}
 		b.mq.Publish(b.topicIDUAvail(id), 1, true, "online")
-		b.publishIDUState(id, s)
-		b.lastIDU[id] = s
+		b.publishPolledLocked(id, s)
 	}
 
 	if b.cfg.Bridge.ODUEntities {
@@ -201,6 +216,30 @@ func (b *Bridge) pollODU(id int) {
 	b.mq.Publish(b.topicODUAvail(id), 1, true, "online")
 	payload, _ := json.Marshal(s)
 	b.mq.Publish(b.topicODUState(id), 1, true, payload)
+}
+
+// publishPolledLocked publishes freshly polled state, honouring any
+// pending command: until the hardware confirms the command (or the
+// window expires), the pending settings are overlaid onto the polled
+// telemetry so HA never flips back to the pre-write state. Caller must
+// hold b.mu.
+func (b *Bridge) publishPolledLocked(id int, s *rvf.IDUStatus) {
+	if p := b.pending[id]; p != nil {
+		switch {
+		case p.req.ConfirmedBy(s):
+			b.logf("IDU %d: command confirmed by hardware", id)
+			delete(b.pending, id)
+		case time.Now().After(p.until):
+			b.logf("IDU %d: command NOT confirmed within window — showing hardware state", id)
+			delete(b.pending, id)
+		default:
+			c := *s
+			p.req.ApplyOptimistic(&c)
+			s = &c
+		}
+	}
+	b.lastIDU[id] = s
+	b.publishIDUState(id, s)
 }
 
 func (b *Bridge) publishIDUState(id int, s *rvf.IDUStatus) {
@@ -237,12 +276,19 @@ func (b *Bridge) handleIDUCommand(_ mqtt.Client, msg mqtt.Message) {
 		b.logf("command IDU %d write: %v", id, err)
 		return
 	}
-	// The box reflects holding writes with a delay, so an immediate
-	// read-back returns the pre-write state. Publish an optimistic
-	// state right away for snappy UI, then verify with a real read.
-	// The box needs a few seconds to apply a write to its table.
+	// The box reflects holding writes with a delay of several seconds.
+	// Record the command as pending: polled state keeps showing these
+	// settings until the hardware confirms them (or the window ends).
+	b.mu.Lock()
+	if p := b.pending[id]; p != nil {
+		p.req.Merge(req)
+		p.until = time.Now().Add(pendingWindow)
+	} else {
+		b.pending[id] = &pendingCmd{req: req, until: time.Now().Add(pendingWindow)}
+	}
+	b.mu.Unlock()
 	b.publishOptimistic(id, req)
-	time.AfterFunc(5*time.Second, func() { b.refreshIDU(id) })
+	time.AfterFunc(6*time.Second, func() { b.refreshIDU(id) })
 }
 
 // publishOptimistic merges the accepted request into the cached state
@@ -260,7 +306,7 @@ func (b *Bridge) publishOptimistic(id int, req rvf.SetRequest) {
 	b.publishIDUState(id, &c)
 }
 
-// refreshIDU re-reads one unit and publishes the authoritative state.
+// refreshIDU re-reads one unit and publishes it (pending-aware).
 func (b *Bridge) refreshIDU(id int) {
 	statuses, err := b.client.ReadIDUs([]int{id})
 	if err != nil {
@@ -270,9 +316,8 @@ func (b *Bridge) refreshIDU(id int) {
 	if s, ok := statuses[id]; ok {
 		s.Name = b.cfg.Name(id)
 		b.mu.Lock()
-		b.lastIDU[id] = s
+		b.publishPolledLocked(id, s)
 		b.mu.Unlock()
-		b.publishIDUState(id, s)
 	}
 }
 

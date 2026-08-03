@@ -22,7 +22,7 @@ import (
 	"github.com/lsochanowski/RotensoRVF-HA-Bridge/rvf-habridge/internal/rvf"
 )
 
-var version = "0.2.3"
+var version = "0.2.4"
 
 func usage() {
 	fmt.Fprintf(os.Stderr, `rvf-habridge %s — Rotenso RVF Modbus Box tool

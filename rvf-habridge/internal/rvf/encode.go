@@ -52,6 +52,70 @@ func (r *SetRequest) ApplyOptimistic(s *IDUStatus) {
 	}
 }
 
+// ConfirmedBy reports whether a decoded status already reflects every
+// field of the request — i.e. the hardware has applied the write.
+func (r *SetRequest) ConfirmedBy(s *IDUStatus) bool {
+	if r.Power != nil && s.Power != *r.Power {
+		return false
+	}
+	if r.Mode != nil && s.ModeRaw != uint16(*r.Mode) {
+		return false
+	}
+	if r.Fan != nil && s.FanSetRaw != uint16(*r.Fan) {
+		return false
+	}
+	if r.Temp != nil && s.Setpoint != *r.Temp {
+		return false
+	}
+	if r.VSwing != nil && s.VSwing != *r.VSwing {
+		return false
+	}
+	if r.HSwing != nil && s.HSwing != *r.HSwing {
+		return false
+	}
+	if r.OffLock != nil && s.OffLock != *r.OffLock {
+		return false
+	}
+	if r.ControllerLock != nil && s.ControllerLock != *r.ControllerLock {
+		return false
+	}
+	return true
+}
+
+// Merge folds another request into this one (later fields win).
+func (r *SetRequest) Merge(o SetRequest) {
+	if o.Power != nil {
+		r.Power = o.Power
+	}
+	if o.Mode != nil {
+		r.Mode = o.Mode
+	}
+	if o.Fan != nil {
+		r.Fan = o.Fan
+	}
+	if o.Temp != nil {
+		r.Temp = o.Temp
+	}
+	if o.VSwing != nil {
+		r.VSwing = o.VSwing
+	}
+	if o.HSwing != nil {
+		r.HSwing = o.HSwing
+	}
+	if o.OffLock != nil {
+		r.OffLock = o.OffLock
+	}
+	if o.ModeLock != nil {
+		r.ModeLock = o.ModeLock
+	}
+	if o.TempLock != nil {
+		r.TempLock = o.TempLock
+	}
+	if o.ControllerLock != nil {
+		r.ControllerLock = o.ControllerLock
+	}
+}
+
 // ParseMode maps a CLI/user string to a Mode value.
 func ParseMode(s string) (Mode, error) {
 	if m, ok := modeByName[s]; ok {

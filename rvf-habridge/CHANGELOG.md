@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4
+
+- Fix state flapping after commands: HA showed the change, flipped back
+  to the old state, then settled. The box applies writes to its readable
+  table with a multi-second delay, so polled state contradicting a fresh
+  command is now overlaid with the pending settings until the hardware
+  confirms them (or a 45 s window expires). Telemetry keeps updating
+  live during that window.
+
 ## 0.2.3
 
 - Fix `SUPERVISOR_TOKEN` not reaching the bridge: dropped the Home

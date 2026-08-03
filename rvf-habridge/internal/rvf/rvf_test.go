@@ -174,3 +174,27 @@ func TestSystemMode(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+func TestConfirmedBy(t *testing.T) {
+	s := &IDUStatus{Power: true, ModeRaw: 1, FanSetRaw: 8, Setpoint: 24, VSwing: 6}
+	req := SetRequest{Power: ptr(true), Temp: ptr(24)}
+	if !req.ConfirmedBy(s) {
+		t.Error("matching fields should confirm")
+	}
+	req = SetRequest{Temp: ptr(22)}
+	if req.ConfirmedBy(s) {
+		t.Error("mismatched setpoint must not confirm")
+	}
+	req = SetRequest{Mode: ptr(ModeHeat)}
+	if req.ConfirmedBy(s) {
+		t.Error("mismatched mode must not confirm")
+	}
+}
+
+func TestMergeRequests(t *testing.T) {
+	r := SetRequest{Power: ptr(true), Temp: ptr(22)}
+	r.Merge(SetRequest{Temp: ptr(25), Fan: ptr(FanHigh)})
+	if *r.Temp != 25 || *r.Fan != FanHigh || !*r.Power {
+		t.Errorf("merge result wrong: %+v", r)
+	}
+}
