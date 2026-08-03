@@ -1,5 +1,5 @@
 name: Rotenso RVF Bridge
-version: "0.2.0"
+version: "0.2.1"
 slug: rvf_habridge
 description: Rotenso RVF (Modbus Box SP-D168) to Home Assistant via MQTT discovery
 url: https://github.com/lsochanowski/RotensoRVF-HA-Bridge
@@ -12,6 +12,7 @@ startup: services
 boot: auto
 services:
   - mqtt:need
+hassio_api: true
 uart: true
 options:
   connection_url: "rtutcp://192.168.1.50:8899"
