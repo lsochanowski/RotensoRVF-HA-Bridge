@@ -161,9 +161,9 @@ func cmdScan(args []string) {
 		fmt.Println("No indoor units online. Check XYE wiring, slave id and connection.")
 		return
 	}
-	fmt.Printf("%-4s %-14s %-20s %-6s %-8s %s\n", "ID", "NAME", "TYPE", "CAP", "POWER", "ERROR")
+	fmt.Printf("%-4s %-18s %-20s %-6s %-8s %s\n", "ID", "NAME", "TYPE", "CAP", "POWER", "ERROR")
 	for _, s := range sortedStatuses(statuses) {
-		fmt.Printf("%-4d %-14s %-20s %-6s %-8s %s\n",
+		fmt.Printf("%-4d %-18s %-20s %-6s %-8s %s\n",
 			s.ID, orDash(s.Name), s.UnitType,
 			fmt.Sprintf("%.1fHP", s.CapacityHP),
 			onOff(s.Power), orDash(s.Error))
