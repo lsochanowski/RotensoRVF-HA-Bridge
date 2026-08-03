@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"rotenso-rvf-habridge/internal/config"
+	"rotenso-rvf-habridge/internal/mqttbridge"
 	"rotenso-rvf-habridge/internal/rvf"
 )
 
@@ -35,6 +37,7 @@ Commands:
   set       change settings of one IDU (read-modify-write)
   all       group (broadcast) control of all IDUs
   raw       raw register access (read-input / read-holding / write)
+  bridge    run the MQTT bridge daemon (Home Assistant discovery)
   version   print version
 
 Connection flags (every command): --config, --conn, --unit, --timeout
@@ -118,6 +121,8 @@ func main() {
 		cmdAll(args)
 	case "raw":
 		cmdRaw(args)
+	case "bridge":
+		cmdBridge(args)
 	case "version":
 		fmt.Println(version)
 	case "-h", "--help", "help":
@@ -575,6 +580,41 @@ func cmdRaw(args []string) {
 		fmt.Println("written OK")
 	default:
 		fatal("raw: unknown subcommand %q", sub)
+	}
+}
+
+func cmdBridge(args []string) {
+	fs := flag.NewFlagSet("bridge", flag.ExitOnError)
+	connect := commonFlags(fs)
+	broker := fs.String("broker", "", "MQTT broker URL, e.g. tcp://host:1883 (overrides config)")
+	fs.Parse(args)
+	cfg, client := connect()
+	defer client.Close()
+
+	if *broker != "" {
+		cfg.MQTT.Broker = *broker
+	}
+	// Inside an HA add-on the Supervisor hands out the Mosquitto
+	// credentials — no manual MQTT config needed.
+	if err := cfg.FillMQTTFromSupervisor(); err != nil {
+		fatal("bridge: %v", err)
+	}
+	if cfg.MQTT.Broker == "" {
+		fatal("bridge: no MQTT broker — pass --broker tcp://host:1883 or set mqtt.broker in %s", config.DefaultPath)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sig
+		fmt.Fprintln(os.Stderr, "shutting down...")
+		cancel()
+	}()
+
+	b := mqttbridge.New(cfg, client, version)
+	if err := b.Run(ctx); err != nil {
+		fatal("bridge: %v", err)
 	}
 }
 

@@ -20,6 +20,38 @@ type SetRequest struct {
 	ControllerLock *bool
 }
 
+// ApplyOptimistic merges the request into a decoded status, mirroring
+// what the unit will report once the write settles. Used by the MQTT
+// bridge for instant UI feedback.
+func (r *SetRequest) ApplyOptimistic(s *IDUStatus) {
+	if r.Power != nil {
+		s.Power = *r.Power
+	}
+	if r.Mode != nil {
+		s.ModeRaw = uint16(*r.Mode)
+		s.Mode = name(modeNames, *r.Mode)
+	}
+	if r.Fan != nil {
+		s.FanSetRaw = uint16(*r.Fan)
+		s.FanSet = name(fanNames, *r.Fan)
+	}
+	if r.Temp != nil {
+		s.Setpoint = *r.Temp
+	}
+	if r.VSwing != nil {
+		s.VSwing = *r.VSwing
+	}
+	if r.HSwing != nil {
+		s.HSwing = *r.HSwing
+	}
+	if r.OffLock != nil {
+		s.OffLock = *r.OffLock
+	}
+	if r.ControllerLock != nil {
+		s.ControllerLock = *r.ControllerLock
+	}
+}
+
 // ParseMode maps a CLI/user string to a Mode value.
 func ParseMode(s string) (Mode, error) {
 	if m, ok := modeByName[s]; ok {

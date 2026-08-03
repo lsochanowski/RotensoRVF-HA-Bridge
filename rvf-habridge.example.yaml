@@ -26,3 +26,17 @@ idus:
 
 # Number of outdoor units on the bus (1-4).
 odu_count: 1
+
+# MQTT bridge (rvf-habridge bridge). Inside an HA add-on the broker is
+# auto-discovered from the Supervisor — leave `broker` empty there.
+mqtt:
+  broker: tcp://192.168.1.10:1883
+  username: ""
+  password: ""
+  # client_id: rvf-habridge
+  # topic_prefix: rvf
+  # discovery_prefix: homeassistant
+
+bridge:
+  poll_interval: 10s
+  odu_entities: true

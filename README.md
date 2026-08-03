@@ -135,11 +135,47 @@ Constraints from the manual honoured by the client: max 10 registers per
 0x10 write, ~1 request/s recommended pacing for writes, mode+temp+fan
 required at power-on.
 
+## MQTT bridge (Home Assistant)
+
+```bash
+rvf-habridge bridge                # broker from config or Supervisor
+rvf-habridge bridge --broker tcp://192.168.1.10:1883
+```
+
+Publishes Home Assistant MQTT discovery for:
+
+- **climate** entity per indoor unit (modes off/cool/heat/dry/fan_only/auto,
+  fan low/medium/high/auto, vertical swing on/off, target + current
+  temperature, hvac action),
+- diagnostic **sensors** per IDU: return/evaporator temperatures, EXV
+  opening, power demand, actual fan speed, error code (+ binary sensors:
+  electric heater, water pump, problem),
+- **ODU sensors** (ambient, high pressure, discharge temps, compressor
+  speeds, EXV, protection/error) — marked unavailable while the box has
+  no ODU communication,
+- bridge device: system mode, online IDU count, **All units off** button
+  (group register 3840).
+
+Availability chains the bridge LWT with the per-unit online bitmap, so
+units vanish from HA when they drop off the bus. Commands are applied
+via read-modify-write; the bridge publishes an optimistic state
+immediately and verifies with a real read after ~5 s (the box applies
+writes to its table with a delay). Powering on fills in required
+defaults (fan/temp) per the manual; `fan_only` defaults to medium fan
+because units reject auto fan in that mode.
+
+Inside a Home Assistant add-on, MQTT credentials are pulled from the
+Supervisor (`http://supervisor/services/mqtt`) automatically — no
+manual broker config needed.
+
+**Single client rule:** in transparent mode the serial server relays
+frames from every TCP client onto the same half-duplex RS-485 bus. Run
+either the bridge *or* ad-hoc CLI commands — not both at once — or
+responses will collide.
+
 ## Roadmap
 
-- [ ] `bridge` daemon: poll loop → MQTT with Home Assistant discovery
-      (climate + diagnostic sensors per IDU, ODU sensors, availability
-      from the online bitmap, optimistic state)
+- [x] `bridge` daemon: poll loop → MQTT with Home Assistant discovery
 - [ ] HAOS add-on packaging (`config.yaml` + Dockerfile, Supervisor MQTT service)
 - [ ] Long-run hardware validation of ODU register scaling
 

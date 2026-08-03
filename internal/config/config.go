@@ -16,6 +16,22 @@ type Config struct {
 	Connection Connection     `yaml:"connection"`
 	IDUs       map[int]string `yaml:"idus"`      // id -> human name
 	ODUCount   int            `yaml:"odu_count"` // default 1
+	MQTT       MQTT           `yaml:"mqtt"`
+	Bridge     Bridge         `yaml:"bridge"`
+}
+
+type MQTT struct {
+	Broker          string `yaml:"broker"` // tcp://host:1883
+	Username        string `yaml:"username"`
+	Password        string `yaml:"password"`
+	ClientID        string `yaml:"client_id"`        // default rvf-habridge
+	TopicPrefix     string `yaml:"topic_prefix"`     // default rvf
+	DiscoveryPrefix string `yaml:"discovery_prefix"` // default homeassistant
+}
+
+type Bridge struct {
+	PollInterval time.Duration `yaml:"poll_interval"` // default 10s
+	ODUEntities  bool          `yaml:"odu_entities"`  // default true
 }
 
 type Connection struct {
@@ -38,23 +54,43 @@ func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) && !explicit {
-			return &Config{ODUCount: 1}, nil
+			cfg := Config{ODUCount: 1}
+			cfg.Bridge.ODUEntities = true
+			cfg.applyDefaults()
+			return &cfg, nil
 		}
 		return nil, err
 	}
 	var cfg Config
+	cfg.Bridge.ODUEntities = true
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 	if cfg.ODUCount == 0 {
 		cfg.ODUCount = 1
 	}
+	cfg.applyDefaults()
 	for id := range cfg.IDUs {
 		if id < 0 || id > 63 {
 			return nil, fmt.Errorf("%s: IDU id %d out of range 0-63", path, id)
 		}
 	}
 	return &cfg, nil
+}
+
+func (c *Config) applyDefaults() {
+	if c.MQTT.ClientID == "" {
+		c.MQTT.ClientID = "rvf-habridge"
+	}
+	if c.MQTT.TopicPrefix == "" {
+		c.MQTT.TopicPrefix = "rvf"
+	}
+	if c.MQTT.DiscoveryPrefix == "" {
+		c.MQTT.DiscoveryPrefix = "homeassistant"
+	}
+	if c.Bridge.PollInterval == 0 {
+		c.Bridge.PollInterval = 10 * time.Second
+	}
 }
 
 // Name returns the configured name for an IDU id, or "" if unnamed.
