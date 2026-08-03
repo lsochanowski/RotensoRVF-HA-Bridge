@@ -588,7 +588,28 @@ func cmdBridge(args []string) {
 	connect := commonFlags(fs)
 	broker := fs.String("broker", "", "MQTT broker URL, e.g. tcp://host:1883 (overrides config)")
 	fs.Parse(args)
-	cfg, client := connect()
+
+	var cfg *config.Config
+	var client *rvf.Client
+	if config.RunningAsAddon() {
+		// Home Assistant add-on: options come from the Supervisor.
+		acfg, err := config.LoadAddon(config.AddonOptionsPath)
+		if err != nil {
+			fatal("bridge: addon options: %v", err)
+		}
+		cfg = acfg
+		c, err := rvf.Dial(rvf.ConnConfig{
+			URL:     cfg.Connection.URL,
+			UnitID:  cfg.Connection.UnitID,
+			Timeout: cfg.Connection.Timeout,
+		})
+		if err != nil {
+			fatal("bridge: %v", err)
+		}
+		client = c
+	} else {
+		cfg, client = connect()
+	}
 	defer client.Close()
 
 	if *broker != "" {

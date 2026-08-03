@@ -1,0 +1,33 @@
+name: Rotenso RVF Bridge
+version: "0.2.0"
+slug: rvf_habridge
+description: Rotenso RVF (Modbus Box SP-D168) to Home Assistant via MQTT discovery
+url: https://github.com/CHANGEME/RotensoRVF-HABridge
+arch:
+  - amd64
+  - aarch64
+  - armv7
+init: false
+startup: services
+boot: auto
+services:
+  - mqtt:need
+uart: true
+options:
+  connection_url: "rtutcp://192.168.1.50:8899"
+  unit_id: 1
+  timeout: "3s"
+  poll_interval: "10s"
+  odu_count: 1
+  odu_entities: true
+  idus: []
+schema:
+  connection_url: str
+  unit_id: int(1,63)
+  timeout: str
+  poll_interval: str
+  odu_count: int(1,4)
+  odu_entities: bool
+  idus:
+    - id: int(0,63)
+      name: str

@@ -4,10 +4,26 @@ Bridge and test tooling for **Rotenso RVF** VRF systems equipped with the
 **Modbus Box** (SP-D168, code 810055200026), based on the service manual
 `RO_RVF_ALL_BMSMB3_SM_PL_20260520`.
 
-Written in Go. Current stage: **standalone CLI** for bench testing —
-scanning the bus, mapping IDU ids to room names, reading every register
-the box exposes and exercising writes. The Home Assistant integration
-(MQTT discovery + HAOS add-on) builds on top of this core and lands next.
+Written in Go. Ships as a **Home Assistant add-on** (MQTT discovery)
+plus a standalone CLI for bench testing: scanning the bus, mapping IDU
+ids to room names, reading every register the box exposes and
+exercising writes.
+
+## Home Assistant add-on install
+
+This repository is a Home Assistant add-on repository:
+
+1. Settings → Add-ons → Add-on Store → ⋮ → **Repositories** →
+   add this repo's GitHub URL.
+2. Install **Rotenso RVF Bridge**, set `connection_url` (and room names)
+   in the add-on configuration, start it.
+3. With the Mosquitto add-on running, MQTT credentials are picked up
+   automatically from the Supervisor; climate entities appear via MQTT
+   discovery.
+
+See [rvf-habridge/DOCS.md](rvf-habridge/DOCS.md) for options. The Go
+module lives in [rvf-habridge/](rvf-habridge/) (the add-on build context);
+run the CLI from there during development.
 
 > Rotenso RVF is a rebadged Midea V6/VRF platform; the register map may
 > match other brands using the same Modbus gateway. Use at your own risk.
