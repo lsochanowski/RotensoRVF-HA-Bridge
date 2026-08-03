@@ -1,6 +1,5 @@
-/rvf-habridge
-/rvf-simulator
-/bin/
+bin/
 rvf-habridge.yaml
 *.pdf
 .DS_Store
+BOM.md

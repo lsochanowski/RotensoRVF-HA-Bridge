@@ -16,9 +16,9 @@ import (
 	"syscall"
 	"time"
 
-	"rotenso-rvf-habridge/internal/config"
-	"rotenso-rvf-habridge/internal/mqttbridge"
-	"rotenso-rvf-habridge/internal/rvf"
+	"github.com/lsochanowski/RotensoRVF-HA-Bridge/rvf-habridge/internal/config"
+	"github.com/lsochanowski/RotensoRVF-HA-Bridge/rvf-habridge/internal/mqttbridge"
+	"github.com/lsochanowski/RotensoRVF-HA-Bridge/rvf-habridge/internal/rvf"
 )
 
 var version = "0.1.0-dev"

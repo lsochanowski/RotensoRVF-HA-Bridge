@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"rotenso-rvf-habridge/internal/rvf"
+	"github.com/lsochanowski/RotensoRVF-HA-Bridge/rvf-habridge/internal/rvf"
 )
 
 // device is the HA MQTT discovery device block.

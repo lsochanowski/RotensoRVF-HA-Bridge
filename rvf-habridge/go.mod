@@ -1,4 +1,4 @@
-module rotenso-rvf-habridge
+module github.com/lsochanowski/RotensoRVF-HA-Bridge/rvf-habridge
 
 go 1.24.0
 

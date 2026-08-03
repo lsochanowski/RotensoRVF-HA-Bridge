@@ -17,8 +17,8 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
-	"rotenso-rvf-habridge/internal/config"
-	"rotenso-rvf-habridge/internal/rvf"
+	"github.com/lsochanowski/RotensoRVF-HA-Bridge/rvf-habridge/internal/config"
+	"github.com/lsochanowski/RotensoRVF-HA-Bridge/rvf-habridge/internal/rvf"
 )
 
 type Bridge struct {
