@@ -1,5 +1,4 @@
 bin/
 rvf-habridge.yaml
-*.pdf
 .DS_Store
 BOM.md
